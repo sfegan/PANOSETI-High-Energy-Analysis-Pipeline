@@ -1257,7 +1257,7 @@ def calculate_spline_location_and_scale(camera_images, dtknot=600, nknot=None, l
     t_start_s = np.min(times_s)
     t_end_s = np.max(times_s)
     if nknot is None:
-        nknot = np.maximum(2, int(np.ceil((t_end_s - t_start_s) / dtknot)))
+        nknot = np.maximum(2, int(np.ceil((t_end_s - t_start_s) / dtknot)) + 1)
     tknot_s = np.linspace(t_start_s, t_end_s, nknot)
 
     if loud:
