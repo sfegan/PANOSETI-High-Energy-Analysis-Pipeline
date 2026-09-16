@@ -298,7 +298,7 @@ class CameraImages:
             quabo_event_time=self.quabo_event_time[mask] if self.quabo_event_time is not None else None
         )
 
-    def filter_events(self, min_quabos=None, min_delta_t=None):
+    def filter_events(self, min_quabos=None, min_delta_t=None, mask=None):
         """
         Filter camera images based on specific cuts.
         
@@ -306,11 +306,24 @@ class CameraImages:
             min_quabos (int, optional): Minimum number of Quabos required in the image.
             min_delta_t (float, optional): Minimum time (seconds) since the last event.
                                            Used to filter out high-frequency spikes.
+            mask (array-like, optional): Boolean mask or index array indicating which
+                                         events to keep.
                                            
         Returns:
             CameraImages: A new CameraImages object with filtered images and metadata.
         """
         keep = np.ones(len(self.event_times), dtype=bool)
+
+        if mask is not None:
+            mask_arr = np.asarray(mask)
+            if mask_arr.dtype == bool:
+                if len(mask_arr) != len(self.event_times):
+                    raise ValueError(f"Boolean mask length ({len(mask_arr)}) does not match number of events ({len(self.event_times)})")
+                keep &= mask_arr
+            else:
+                int_mask = np.zeros(len(self.event_times), dtype=bool)
+                int_mask[mask_arr] = True
+                keep &= int_mask
         
         if min_quabos is not None:
             masks = np.asarray(self.quabo_masks, dtype=int)
