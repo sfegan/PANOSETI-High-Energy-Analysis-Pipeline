@@ -42,7 +42,7 @@
 int seed = 200;
 TRandom3 *r = new TRandom3(seed);
 
-// Set to true to use ray tracing for photon scattering, false to use Gaussian approximation
+// Set to true to use ray tracing with thin Fresnel lens model, false to use Gaussian approximation
 const bool kUseRayTrace = true;
 
 // Root file
