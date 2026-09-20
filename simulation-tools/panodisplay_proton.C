@@ -98,9 +98,10 @@ double redang( double iangle )
 // ============================================================================
 // PANOSETI Thin Lens Optical Model Parameters & Tables
 // ============================================================================
-const double kOpticsF = 60.78;  // Focal length (cm)
-const double kOpticsD = 46.09;  // Aperture diameter (cm)
-const double kOpticsR = 23.045; // Aperture radius (cm)
+const double kOpticsF = 60.78;         // Focal length (cm)
+const double kOpticsD = 46.09;         // Aperture diameter (cm)
+const double kOpticsR = 23.045;        // Aperture radius (cm)
+const double kOpticsRoughness = 0.0;   // Lens surface roughness (cm), 0 = disabled
 
 // Fresnel polynomial sag coefficients: y = sum(a_k * rho^(2k))
 const double kPolyCoeffs[11] = {
@@ -119,29 +120,49 @@ const double kPolyCoeffs[11] = {
 
 // Inverse CDF of photon energy (eV) for Cherenkov spectrum folded with full PDE
 // (Atmospheric transmission at alt=10km, zn=30deg * PMMA transmission * SiPM PDE).
-// Zero-tail trimmed to physical detection window [1.305 eV, 3.647 eV] (~340 to 950 nm).
-const int kNumUGrid = 101;
-const double kInvCDFEnergy[101] = {
-    1.305097, 1.449981, 1.519204, 1.573380, 1.619006,
-    1.661821, 1.697955, 1.732686, 1.763344, 1.792426,
-    1.819888, 1.845235, 1.869423, 1.892775, 1.915422,
-    1.937024, 1.957723, 1.977610, 1.996568, 2.014978,
-    2.032950, 2.050527, 2.067772, 2.084811, 2.101612,
-    2.117991, 2.133850, 2.149439, 2.164818, 2.179967,
-    2.194839, 2.209452, 2.223854, 2.238057, 2.252068,
-    2.265911, 2.279595, 2.293128, 2.306532, 2.319814,
-    2.332977, 2.346026, 2.358970, 2.371824, 2.384596,
-    2.397286, 2.409896, 2.422430, 2.434889, 2.447280,
-    2.459628, 2.471937, 2.484211, 2.496462, 2.508699,
-    2.520924, 2.533136, 2.545336, 2.557525, 2.569710,
-    2.581896, 2.594085, 2.606274, 2.618466, 2.630663,
-    2.642866, 2.655074, 2.667294, 2.679535, 2.691795,
-    2.704084, 2.716415, 2.728793, 2.741233, 2.753740,
-    2.766316, 2.778961, 2.791677, 2.804472, 2.817363,
-    2.830353, 2.843450, 2.856676, 2.870040, 2.883577,
-    2.897305, 2.911298, 2.925599, 2.940294, 2.955475,
-    2.971274, 2.987828, 3.005357, 3.024096, 3.044433,
-    3.066807, 3.092001, 3.121486, 3.158061, 3.210602,
+// Zero-tail trimmed to physical detection window [1.305 eV, 3.647 eV] (~340 to 950 nm, 201 points).
+const int kNumUGrid = 201;
+const double kInvCDFEnergy[201] = {
+    1.305097, 1.405120, 1.449981, 1.486680, 1.519204,
+    1.547630, 1.573380, 1.596913, 1.619006, 1.642698,
+    1.661821, 1.680094, 1.697955, 1.715681, 1.732686,
+    1.748250, 1.763344, 1.778084, 1.792426, 1.806646,
+    1.819888, 1.832719, 1.845235, 1.857458, 1.869423,
+    1.881172, 1.892775, 1.904193, 1.915422, 1.926377,
+    1.937024, 1.947466, 1.957723, 1.967757, 1.977610,
+    1.987181, 1.996568, 2.005831, 2.014978, 2.024016,
+    2.032950, 2.041785, 2.050527, 2.059185, 2.067772,
+    2.076315, 2.084811, 2.093248, 2.101612, 2.109908,
+    2.117991, 2.125959, 2.133850, 2.141674, 2.149439,
+    2.157156, 2.164818, 2.172418, 2.179967, 2.187447,
+    2.194839, 2.202173, 2.209452, 2.216678, 2.223854,
+    2.230979, 2.238057, 2.245086, 2.252068, 2.259010,
+    2.265911, 2.272772, 2.279595, 2.286380, 2.293128,
+    2.299846, 2.306532, 2.313189, 2.319814, 2.326411,
+    2.332977, 2.339517, 2.346026, 2.352510, 2.358970,
+    2.365408, 2.371824, 2.378220, 2.384596, 2.390950,
+    2.397286, 2.403601, 2.409896, 2.416173, 2.422430,
+    2.428669, 2.434889, 2.441093, 2.447280, 2.453458,
+    2.459628, 2.465787, 2.471937, 2.478078, 2.484211,
+    2.490338, 2.496462, 2.502582, 2.508699, 2.514813,
+    2.520924, 2.527031, 2.533136, 2.539237, 2.545336,
+    2.551432, 2.557525, 2.563617, 2.569710, 2.575803,
+    2.581896, 2.587990, 2.594085, 2.600179, 2.606274,
+    2.612370, 2.618466, 2.624564, 2.630663, 2.636764,
+    2.642866, 2.648969, 2.655074, 2.661182, 2.667294,
+    2.673412, 2.679535, 2.685663, 2.691795, 2.697935,
+    2.704084, 2.710244, 2.716415, 2.722597, 2.728793,
+    2.735005, 2.741233, 2.747478, 2.753740, 2.760019,
+    2.766316, 2.772630, 2.778961, 2.785310, 2.791677,
+    2.798063, 2.804472, 2.810905, 2.817363, 2.823845,
+    2.830353, 2.836886, 2.843450, 2.850046, 2.856676,
+    2.863339, 2.870040, 2.876786, 2.883577, 2.890412,
+    2.897305, 2.904265, 2.911298, 2.918407, 2.925599,
+    2.932890, 2.940294, 2.947809, 2.955475, 2.963291,
+    2.971274, 2.979451, 2.987828, 2.996470, 3.005357,
+    3.014575, 3.024096, 3.034036, 3.044433, 3.055327,
+    3.066807, 3.078999, 3.092001, 3.106080, 3.121486,
+    3.138554, 3.158061, 3.181192, 3.210602, 3.254194,
     3.646594
 };
 
@@ -187,6 +208,7 @@ double get_refractive_index(double energy_eV) {
  * - Uniformly samples entrance pupil impact position on circular aperture (diameter D = 46.09 cm)
  * - Refracts into lens at entry plane y = 0
  * - Refracts out of lens with normal defined by aspheric polynomial surface y = P(rho^2)
+ * - Applies surface micro-roughness scattering if kOpticsRoughness > 0
  * - Propagates to focal plane at y = -F (F = 60.78 cm)
  *
  * Args:
@@ -230,7 +252,7 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
     double lnorm = sqrt(lx*lx + ly*ly + lz*lz);
     lx /= lnorm; ly /= lnorm; lz /= lnorm;
 
-    // 2. Refract out of lens with normal defined by aspheric polynomial surface y = P(rho^2)
+    // 2. Refract out of lens at aspheric polynomial surface y = P(rho^2)
     double rho2 = x0*x0 + z0*z0;
     double dp_du = 0.0;
     double rho2_pow = 1.0;
@@ -262,6 +284,41 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
     double oz = n_ratio2 * lz + (n_ratio2 * cos_i2 - cos_t2) * nz;
     double onorm = sqrt(ox*ox + oy*oy + oz*oz);
     ox /= onorm; oy /= onorm; oz /= onorm;
+
+    // Surface micro-roughness scattering (Gaussian angular deviation)
+    if (kOpticsRoughness > 0.0) {
+        double sigma_theta = kOpticsRoughness / kOpticsF;
+        double u_scat1 = r->Rndm();
+        double u_scat2 = r->Rndm();
+        double theta_scat = sigma_theta * sqrt(-2.0 * log(u_scat1 + 1e-12));
+        double phi_scat = 2.0 * M_PI * u_scat2;
+        double cos_th = cos(theta_scat);
+        double sin_th = sin(theta_scat);
+        double cos_ph = cos(phi_scat);
+        double sin_ph = sin(phi_scat);
+
+        // Orthonormal basis (U, W) orthogonal to V = (ox, oy, oz)
+        double ux = 0.0, uy = oz, uz = -oy; // V x (1, 0, 0)
+        double unorm_scat = sqrt(ux*ux + uy*uy + uz*uz);
+        if (unorm_scat > 0.5) {
+            ux /= unorm_scat; uy /= unorm_scat; uz /= unorm_scat;
+        } else {
+            ux = -oz; uy = 0.0; uz = ox; // V x (0, 1, 0)
+            unorm_scat = sqrt(ux*ux + uy*uy + uz*uz);
+            ux /= unorm_scat; uy /= unorm_scat; uz /= unorm_scat;
+        }
+        // W = V x U
+        double wx = oy * uz - oz * uy;
+        double wy = oz * ux - ox * uz;
+        double wz = ox * uy - oy * ux;
+
+        // Scattered direction: V_new = cos_th * V + sin_th * (cos_ph * U + sin_ph * W)
+        ox = cos_th * ox + sin_th * (cos_ph * ux + sin_ph * wx);
+        oy = cos_th * oy + sin_th * (cos_ph * uy + sin_ph * wy);
+        oz = cos_th * oz + sin_th * (cos_ph * uz + sin_ph * wz);
+        onorm = sqrt(ox*ox + oy*oy + oz*oz);
+        ox /= onorm; oy /= onorm; oz /= onorm;
+    }
 
     // 3. Propagate to focal plane at y = -F
     if (oy >= 0.0) {
