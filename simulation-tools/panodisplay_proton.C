@@ -25,6 +25,7 @@
 #include "TStyle.h"
 #include "TTree.h"
 
+#include <limits>
 #include "iostream"
 #include "fstream"
 
@@ -102,6 +103,7 @@ const double kOpticsF = 60.78;         // Focal length (cm)
 const double kOpticsD = 46.09;         // Aperture diameter (cm)
 const double kOpticsR = 23.045;        // Aperture radius (cm)
 const double kOpticsRoughness = 0.0;   // Lens surface roughness (cm), 0 = disabled
+const double kSigmaScattering = kOpticsRoughness/kOpticsF;
 
 // Fresnel polynomial sag coefficients: y = sum(a_k * rho^(2k))
 const double kPolyCoeffs[11] = {
@@ -288,38 +290,27 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
     ox /= onorm; oy /= onorm; oz /= onorm;
 
     // Surface micro-roughness scattering (Gaussian angular deviation)
-    if (kOpticsRoughness > 0.0) {
-        double sigma_theta = kOpticsRoughness / kOpticsF;
-        double u_scat1 = r->Rndm();
-        double u_scat2 = r->Rndm();
-        double theta_scat = sigma_theta * sqrt(-2.0 * log(u_scat1 + 1e-12));
-        double phi_scat = 2.0 * M_PI * u_scat2;
-        double cos_th = cos(theta_scat);
+    if (kSigmaScattering > 0.0) {
+        double theta_scat = kSigmaScattering * sqrt(-2.0 * log(r->Rndm() + 1e-12));
+        double phi_scat = 2.0 * M_PI * r->Rndm();
+
+        // Scattered direction in a frame whose y axis is the outgoing ray
         double sin_th = sin(theta_scat);
-        double cos_ph = cos(phi_scat);
-        double sin_ph = sin(phi_scat);
+        double wx = sin_th * cos(phi_scat), wy = cos(theta_scat), wz = sin_th * sin(phi_scat);
 
-        // Orthonormal basis (U, W) orthogonal to V = (ox, oy, oz)
-        double ux = 0.0, uy = oz, uz = -oy; // V x (1, 0, 0)
-        double unorm_scat = sqrt(ux*ux + uy*uy + uz*uz);
-        if (unorm_scat > 0.5) {
-            ux /= unorm_scat; uy /= unorm_scat; uz /= unorm_scat;
-        } else {
-            ux = -oz; uy = 0.0; uz = ox; // V x (0, 1, 0)
-            unorm_scat = sqrt(ux*ux + uy*uy + uz*uz);
-            ux /= unorm_scat; uy /= unorm_scat; uz /= unorm_scat;
+        // Rotate that frame's y axis onto (ox, oy, oz)
+        double st = sqrt(ox*ox + oz*oz);
+        if (st > 1e-12) {
+            double cp = ox / st, sp = oz / st;
+            double wr =  wx*cp + wz*sp;
+            double wt = -wx*sp + wz*cp;
+            double nx = wy*ox + wr*oy*cp - wt*sp;
+            double ny = wy*oy - wr*st;
+            double nz = wy*oz + wr*oy*sp + wt*cp;
+            ox = nx; oy = ny; oz = nz;
+        } else {                       // ray exactly along -y
+            ox = wx; oy = -wy; oz = wz;
         }
-        // W = V x U
-        double wx = oy * uz - oz * uy;
-        double wy = oz * ux - ox * uz;
-        double wz = ox * uy - oy * ux;
-
-        // Scattered direction: V_new = cos_th * V + sin_th * (cos_ph * U + sin_ph * W)
-        ox = cos_th * ox + sin_th * (cos_ph * ux + sin_ph * wx);
-        oy = cos_th * oy + sin_th * (cos_ph * uy + sin_ph * wy);
-        oz = cos_th * oz + sin_th * (cos_ph * uz + sin_ph * wz);
-        onorm = sqrt(ox*ox + oy*oy + oz*oz);
-        ox /= onorm; oy /= onorm; oz /= onorm;
     }
 
     // 3. Propagate to focal plane at y = -F
