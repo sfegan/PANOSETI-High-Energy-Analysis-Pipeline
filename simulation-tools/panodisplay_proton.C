@@ -42,6 +42,9 @@
 int seed = 200;
 TRandom3 *r = new TRandom3(seed);
 
+// Set to true to use ray tracing for photon scattering, false to use Gaussian approximation
+const bool kUseRayTrace = true;
+
 // Root file
 TFile *f;
 TTree *t;
@@ -103,6 +106,7 @@ double redang( double iangle )
 // ============================================================================
 // PANOSETI Thin Lens Optical Model Parameters & Tables
 // ============================================================================
+
 const double kOpticsF = 60.78;         // Focal length (cm)
 const double kOpticsD = 46.09;         // Aperture diameter (cm)
 const double kOpticsR = 23.045;        // Aperture radius (cm)
@@ -353,9 +357,13 @@ std::tuple<double,double> spread_gaussian(double positionX, double positionY){
     return std::make_tuple(r->Gaus(positionX, sigma),r->Gaus(positionY, sigma));
 }
 
-// Retain spread() as an alias calling sample_and_trace_photon() for backward compatibility
+// Retain spread() as an alias calling sample_and_trace_photon() or spread_gaussian()
 std::tuple<double, double> spread(double positionX, double positionY) {
-    return sample_and_trace_photon(positionX, positionY);
+    if (kUseRayTrace) {
+        return sample_and_trace_photon(positionX, positionY);
+    } else {
+        return spread_gaussian(positionX, positionY);
+    }   
 }
 
 /*
@@ -1716,8 +1724,8 @@ TH2D* telEvent(int telNumber, int eventNumber){
         double imgX = TMath::RadToDeg()*tTos_vecTC.X();
         double imgY = TMath::RadToDeg()*tTos_vecTC.Y();
 
-        // trace photon through Fresnel optical model
-        std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
+        // Apply PSF: raytraced Fresnel optical model or Gaussian approximation
+        std::tuple<double,double> coords = spread(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
         if (std::isnan(x) || std::isnan(y)) continue;
@@ -2046,8 +2054,8 @@ void showClean(int telNumber, int eventNumber){
         double imgX = TMath::RadToDeg()*tTos_vecTC.X();
         double imgY = TMath::RadToDeg()*tTos_vecTC.Y();
 
-        // trace photon through Fresnel optical model
-        std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
+        // Apply PSF: raytraced Fresnel optical model or Gaussian approximation
+        std::tuple<double,double> coords = spread(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
         if (std::isnan(x) || std::isnan(y)) continue;
@@ -2171,8 +2179,8 @@ void timegrad(int eventNumber){
 
         // fill image
         for(int i=0; i<NCp; i++){
-            // trace photon through Fresnel optical model
-            std::tuple<double,double> coords = sample_and_trace_photon(imgX[i],imgY[i]);
+            // Apply PSF: raytraced Fresnel optical model or Gaussian approximation
+            std::tuple<double,double> coords = spread(imgX[i],imgY[i]);
             double x = std::get<0>(coords);
             double y = std::get<1>(coords);
             if (std::isnan(x) || std::isnan(y)) continue;
