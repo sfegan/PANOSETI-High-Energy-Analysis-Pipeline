@@ -217,11 +217,13 @@ double get_refractive_index(double energy_eV) {
  *   std::tuple<double, double>: Focal plane position converted back to angular degrees on sky
  */
 std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_deg) {
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+
     // Direction cosines in lens frame (optical axis is -Y, X is horizontal, Z is vertical)
     double tx = TMath::DegToRad() * imgX_deg;
     double tz = TMath::DegToRad() * imgY_deg;
-    double dx = tan(tx);
-    double dz = tan(tz);
+    double dx = tx;
+    double dz = tz;
     double dy = -1.0;
     double norm = sqrt(dx*dx + dy*dy + dz*dz);
     dx /= norm; dy /= norm; dz /= norm;
@@ -243,7 +245,7 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
     double n_ratio1 = 1.0 / n_pmma;
     double sin2_t1 = n_ratio1 * n_ratio1 * (1.0 - cos_i * cos_i);
     if (sin2_t1 > 1.0) {
-        return std::make_tuple(imgX_deg, imgY_deg); // TIR fallback
+        return std::make_tuple(nan, nan); // Total internal reflection fallback
     }
     double cos_t1 = sqrt(1.0 - sin2_t1);
     double lx = n_ratio1 * dx;
@@ -276,7 +278,7 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
     double n_ratio2 = n_pmma;
     double sin2_t2 = n_ratio2 * n_ratio2 * (1.0 - cos_i2 * cos_i2);
     if (sin2_t2 > 1.0) {
-        return std::make_tuple(imgX_deg, imgY_deg); // TIR fallback
+        return std::make_tuple(nan, nan); // Total internal reflection fallback
     }
     double cos_t2 = sqrt(1.0 - sin2_t2);
     double ox = n_ratio2 * lx + (n_ratio2 * cos_i2 - cos_t2) * nx;
@@ -322,7 +324,7 @@ std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_
 
     // 3. Propagate to focal plane at y = -F
     if (oy >= 0.0) {
-        return std::make_tuple(imgX_deg, imgY_deg);
+        return std::make_tuple(nan, nan); // Propagating away from focal plane
     }
     double s = -kOpticsF / oy;
     double x_fp = x0 + s * ox;
@@ -1723,6 +1725,7 @@ TH2D* telEvent(int telNumber, int eventNumber){
         std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
+        if (std::isnan(x) || std::isnan(y)) continue;
 
         // sign flip telescope coordinates to camera coordinates: y-> -1*y
             // via GrOptics README:
@@ -2052,6 +2055,7 @@ void showClean(int telNumber, int eventNumber){
         std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
+        if (std::isnan(x) || std::isnan(y)) continue;
 
         image->Fill(-1*x,y,petoadu); 
     }
@@ -2176,6 +2180,7 @@ void timegrad(int eventNumber){
             std::tuple<double,double> coords = sample_and_trace_photon(imgX[i],imgY[i]);
             double x = std::get<0>(coords);
             double y = std::get<1>(coords);
+            if (std::isnan(x) || std::isnan(y)) continue;
 
             // sign flip ground->sky
             tmp->Fill(x,-1*y,petoadu);
