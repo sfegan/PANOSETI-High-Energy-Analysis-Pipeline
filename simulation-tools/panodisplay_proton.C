@@ -95,10 +95,269 @@ double redang( double iangle )
     return iangle;
 }
 
+// ============================================================================
+// PANOSETI Thin Lens Optical Model Parameters & Tables
+// ============================================================================
+const double kOpticsF = 60.78;  // Focal length (cm)
+const double kOpticsD = 46.09;  // Aperture diameter (cm)
+const double kOpticsR = 23.045; // Aperture radius (cm)
+
+// Fresnel polynomial sag coefficients: y = sum(a_k * rho^(2k))
+const double kPolyCoeffs[11] = {
+    0.00000000000000000e+00, // a0
+    1.70651353139298460e-02, // a1
+    -3.53352632884415423e-06, // a2
+    9.57163484153624398e-10, // a3
+    3.55711029991929572e-13, // a4
+    -1.12361085705273497e-15, // a5
+    1.96912674836582728e-19, // a6
+    9.79010455872597239e-22, // a7
+    3.32575748290361466e-25, // a8
+    -6.27878102919874693e-28, // a9
+    -7.74304624855183072e-31  // a10
+};
+
+// Inverse CDF of photon energy (eV) for Cherenkov spectrum folded with
+// Atmospheric transmission (emission altitude 10 km, zenith angle 30 deg),
+// PMMA transmission, and SiPM PDE (sampled on uniform u in [0, 1])
+const int kNumUGrid = 201;
+const double kInvCDFEnergy[201] = {
+    1.300300, 1.402588, 1.447456, 1.484152, 1.516642,
+    1.545087, 1.570841, 1.594372, 1.616490, 1.640278,
+    1.659390, 1.677660, 1.695542, 1.713257, 1.730274,
+    1.745842, 1.760927, 1.775669, 1.789999, 1.804197,
+    1.817469, 1.830302, 1.842811, 1.855035, 1.866998,
+    1.878742, 1.890346, 1.901757, 1.912985, 1.923939,
+    1.934585, 1.945029, 1.955284, 1.965316, 1.975166,
+    1.984732, 1.994116, 2.003379, 2.012527, 2.021566,
+    2.030498, 2.039331, 2.048073, 2.056730, 2.065316,
+    2.073859, 2.082356, 2.090784, 2.099146, 2.107440,
+    2.115523, 2.123487, 2.131380, 2.139200, 2.146967,
+    2.154682, 2.162345, 2.169943, 2.177489, 2.184967,
+    2.192359, 2.199692, 2.206973, 2.214198, 2.221375,
+    2.228498, 2.235575, 2.242603, 2.249586, 2.256529,
+    2.263428, 2.270290, 2.277112, 2.283895, 2.290645,
+    2.297362, 2.304047, 2.310704, 2.317329, 2.323925,
+    2.330493, 2.337031, 2.343540, 2.350023, 2.356484,
+    2.362921, 2.369337, 2.375734, 2.382108, 2.388463,
+    2.394798, 2.401113, 2.407408, 2.413684, 2.419941,
+    2.426181, 2.432400, 2.438602, 2.444789, 2.450968,
+    2.457137, 2.463296, 2.469446, 2.475587, 2.481719,
+    2.487846, 2.493969, 2.500089, 2.506207, 2.512320,
+    2.518430, 2.524538, 2.530642, 2.536744, 2.542842,
+    2.548938, 2.555031, 2.561123, 2.567215, 2.573308,
+    2.579401, 2.585495, 2.591589, 2.597683, 2.603778,
+    2.609874, 2.615970, 2.622067, 2.628167, 2.634267,
+    2.640369, 2.646472, 2.652577, 2.658684, 2.664796,
+    2.670914, 2.677036, 2.683164, 2.689297, 2.695435,
+    2.701584, 2.707744, 2.713915, 2.720097, 2.726292,
+    2.732504, 2.738733, 2.744978, 2.751239, 2.757518,
+    2.763815, 2.770129, 2.776459, 2.782809, 2.789176,
+    2.795562, 2.801970, 2.808404, 2.814861, 2.821343,
+    2.827851, 2.834385, 2.840948, 2.847544, 2.854174,
+    2.860837, 2.867538, 2.874284, 2.881073, 2.887910,
+    2.894803, 2.901757, 2.908792, 2.915899, 2.923089,
+    2.930379, 2.937780, 2.945303, 2.952956, 2.960773,
+    2.968766, 2.976935, 2.985326, 2.993955, 3.002851,
+    3.012045, 3.021589, 3.031523, 3.041900, 3.052801,
+    3.064301, 3.076478, 3.089502, 3.103555, 3.118960,
+    3.136047, 3.155502, 3.178679, 3.208044, 3.251687,
+    6.000000
+};
+
+// Refractive index table for PMMA vs photon energy (1.0 to 6.0 eV, 501 points)
+const double kRefractiveIndexEMin = 1.00;
+const double kRefractiveIndexEMax = 6.00;
+const int kNumRefractiveIndexGrid = 501;
+const double kRefractiveIndexGrid[501] = {
+    1.466383, 1.466458, 1.466533, 1.466608, 1.466683, 1.466758, 1.466833, 1.466909,
+    1.466986, 1.467066, 1.467147, 1.467228, 1.467311, 1.467394, 1.467478, 1.467562,
+    1.467646, 1.467732, 1.467818, 1.467906, 1.467994, 1.468083, 1.468172, 1.468262,
+    1.468352, 1.468444, 1.468536, 1.468630, 1.468724, 1.468819, 1.468914, 1.469010,
+    1.469107, 1.469205, 1.469304, 1.469403, 1.469503, 1.469605, 1.469706, 1.469808,
+    1.469911, 1.470015, 1.470120, 1.470226, 1.470332, 1.470439, 1.470548, 1.470657,
+    1.470766, 1.470877, 1.470988, 1.471100, 1.471213, 1.471326, 1.471440, 1.471556,
+    1.471671, 1.471789, 1.471906, 1.472025, 1.472144, 1.472264, 1.472385, 1.472506,
+    1.472629, 1.472752, 1.472876, 1.473001, 1.473127, 1.473254, 1.473380, 1.473509,
+    1.473638, 1.473768, 1.473898, 1.474030, 1.474162, 1.474295, 1.474429, 1.474564,
+    1.474700, 1.474836, 1.474973, 1.475111, 1.475251, 1.475390, 1.475531, 1.475673,
+    1.475815, 1.475958, 1.476102, 1.476247, 1.476393, 1.476540, 1.476687, 1.476835,
+    1.476984, 1.477135, 1.477285, 1.477437, 1.477590, 1.477744, 1.477898, 1.478053,
+    1.478209, 1.478366, 1.478524, 1.478683, 1.478843, 1.479003, 1.479164, 1.479327,
+    1.479490, 1.479653, 1.479819, 1.479985, 1.480151, 1.480319, 1.480488, 1.480657,
+    1.480827, 1.480998, 1.481170, 1.481343, 1.481517, 1.481692, 1.481868, 1.482045,
+    1.482223, 1.482401, 1.482580, 1.482760, 1.482942, 1.483124, 1.483307, 1.483491,
+    1.483676, 1.483862, 1.484049, 1.484236, 1.484426, 1.484615, 1.484805, 1.484997,
+    1.485190, 1.485383, 1.485577, 1.485773, 1.485969, 1.486167, 1.486365, 1.486564,
+    1.486764, 1.486965, 1.487168, 1.487370, 1.487574, 1.487779, 1.487986, 1.488193,
+    1.488401, 1.488610, 1.488820, 1.489031, 1.489242, 1.489455, 1.489669, 1.489884,
+    1.490100, 1.490317, 1.490535, 1.490754, 1.490974, 1.491195, 1.491417, 1.491640,
+    1.491864, 1.492089, 1.492316, 1.492542, 1.492770, 1.493000, 1.493230, 1.493462,
+    1.493694, 1.493927, 1.494162, 1.494398, 1.494634, 1.494872, 1.495111, 1.495350,
+    1.495592, 1.495833, 1.496076, 1.496321, 1.496566, 1.496813, 1.497060, 1.497309,
+    1.497558, 1.497809, 1.498061, 1.498314, 1.498568, 1.498823, 1.499079, 1.499337,
+    1.499596, 1.499856, 1.500117, 1.500379, 1.500642, 1.500907, 1.501173, 1.501440,
+    1.501707, 1.501977, 1.502247, 1.502520, 1.502792, 1.503066, 1.503342, 1.503619,
+    1.503896, 1.504175, 1.504455, 1.504736, 1.505019, 1.505302, 1.505586, 1.505868,
+    1.506152, 1.506435, 1.506721, 1.507008, 1.507297, 1.507588, 1.507880, 1.508173,
+    1.508467, 1.508762, 1.509059, 1.509358, 1.509658, 1.509958, 1.510260, 1.510564,
+    1.510869, 1.511175, 1.511482, 1.511790, 1.512101, 1.512412, 1.512724, 1.513038,
+    1.513353, 1.513669, 1.513987, 1.514306, 1.514626, 1.514948, 1.515271, 1.515595,
+    1.515920, 1.516248, 1.516576, 1.516906, 1.517237, 1.517569, 1.517903, 1.518238,
+    1.518574, 1.518912, 1.519251, 1.519592, 1.519933, 1.520277, 1.520621, 1.520968,
+    1.521315, 1.521664, 1.522014, 1.522366, 1.522719, 1.523073, 1.523429, 1.523787,
+    1.524145, 1.524506, 1.524868, 1.525231, 1.525595, 1.525961, 1.526329, 1.526697,
+    1.527068, 1.527439, 1.527813, 1.528188, 1.528565, 1.528943, 1.529322, 1.529703,
+    1.530085, 1.530470, 1.530855, 1.531242, 1.531630, 1.532021, 1.532412, 1.532806,
+    1.533200, 1.533597, 1.533995, 1.534395, 1.534796, 1.535198, 1.535603, 1.536008,
+    1.536416, 1.536825, 1.537236, 1.537648, 1.538062, 1.538478, 1.538895, 1.539315,
+    1.539734, 1.540158, 1.540581, 1.541008, 1.541435, 1.541863, 1.542295, 1.542727,
+    1.543162, 1.543597, 1.544035, 1.544475, 1.544915, 1.545359, 1.545803, 1.546249,
+    1.546698, 1.547147, 1.547600, 1.548052, 1.548508, 1.548966, 1.549424, 1.549885,
+    1.550348, 1.550812, 1.551279, 1.551746, 1.552216, 1.552689, 1.553161, 1.553638,
+    1.554115, 1.554594, 1.555076, 1.555559, 1.556044, 1.556532, 1.557020, 1.557512,
+    1.558005, 1.558498, 1.558997, 1.559495, 1.559995, 1.560499, 1.561003, 1.561509,
+    1.562020, 1.562530, 1.563043, 1.563559, 1.564076, 1.564594, 1.565116, 1.565639,
+    1.566164, 1.566692, 1.567221, 1.567752, 1.568288, 1.568823, 1.569360, 1.569902,
+    1.570444, 1.570988, 1.571536, 1.572085, 1.572635, 1.573191, 1.573746, 1.574302,
+    1.574865, 1.575428, 1.575991, 1.576559, 1.577129, 1.577699, 1.578273, 1.578851,
+    1.579429, 1.580008, 1.580594, 1.581180, 1.581766, 1.582358, 1.582952, 1.583545,
+    1.584143, 1.584745, 1.585347, 1.585950, 1.586560, 1.587171, 1.587781, 1.588397,
+    1.589016, 1.589636, 1.590256, 1.590884, 1.591513, 1.592141, 1.592774, 1.593411,
+    1.594049, 1.594687, 1.595333, 1.595981, 1.596629, 1.597278, 1.597936, 1.598593,
+    1.599251, 1.599913, 1.600581, 1.601249, 1.601916, 1.602592, 1.603270, 1.603948,
+    1.604627, 1.605315, 1.606005, 1.606694, 1.607384, 1.608085, 1.608786, 1.609487,
+    1.610189, 1.610901, 1.611614, 1.612327, 1.613040, 1.613765, 1.614490, 1.615215,
+    1.615940, 1.616678, 1.617416, 1.618153, 1.618891, 1.619641, 1.620392, 1.621142,
+    1.621893, 1.622654, 1.623419, 1.624184, 1.624948, 1.625720, 1.626499, 1.627277,
+    1.628056, 1.628838, 1.629631, 1.630425, 1.631218, 1.632012, 1.632818, 1.633627,
+    1.634436, 1.635245, 1.636061, 1.636885, 1.637710, 1.638535, 1.639359, 1.640200,
+    1.641041, 1.641883, 1.642724, 1.643572, 1.644431
+};
+
+// Sample photon energy from precomputed inverse CDF
+double sample_photon_energy() {
+    double u = r->Rndm();
+    double idx_d = u * (kNumUGrid - 1);
+    int idx = (int)idx_d;
+    if (idx >= kNumUGrid - 1) return kInvCDFEnergy[kNumUGrid - 1];
+    if (idx < 0) return kInvCDFEnergy[0];
+    double frac = idx_d - idx;
+    return kInvCDFEnergy[idx] * (1.0 - frac) + kInvCDFEnergy[idx + 1] * frac;
+}
+
+// Get PMMA refractive index for a given energy (eV)
+double get_refractive_index(double energy_eV) {
+    if (energy_eV <= kRefractiveIndexEMin) return kRefractiveIndexGrid[0];
+    if (energy_eV >= kRefractiveIndexEMax) return kRefractiveIndexGrid[kNumRefractiveIndexGrid - 1];
+    double frac_idx = (energy_eV - kRefractiveIndexEMin) / (kRefractiveIndexEMax - kRefractiveIndexEMin) * (kNumRefractiveIndexGrid - 1);
+    int idx = (int)frac_idx;
+    double frac = frac_idx - idx;
+    return kRefractiveIndexGrid[idx] * (1.0 - frac) + kRefractiveIndexGrid[idx + 1] * frac;
+}
+
+/*
+ * Trace a photon through the PANOSETI Fresnel thin-lens optical model:
+ * - Samples photon energy according to Cherenkov spectrum * atmosphere * PMMA * SiPM PDE
+ * - Evaluates PMMA dispersion n(E)
+ * - Uniformly samples entrance pupil impact position on circular aperture (diameter D = 46.09 cm)
+ * - Refracts into lens at entry plane y = 0
+ * - Refracts out of lens with normal defined by aspheric polynomial surface y = P(rho^2)
+ * - Propagates to focal plane at y = -F (F = 60.78 cm)
+ *
+ * Args:
+ *   imgX_deg, imgY_deg: Incident photon direction in telescope frame (in degrees)
+ * Returns:
+ *   std::tuple<double, double>: Focal plane position converted back to angular degrees on sky
+ */
+std::tuple<double, double> sample_and_trace_photon(double imgX_deg, double imgY_deg) {
+    // Direction cosines in lens frame (optical axis is -Y, X is horizontal, Z is vertical)
+    double tx = TMath::DegToRad() * imgX_deg;
+    double tz = TMath::DegToRad() * imgY_deg;
+    double dx = tan(tx);
+    double dz = tan(tz);
+    double dy = -1.0;
+    double norm = sqrt(dx*dx + dy*dy + dz*dz);
+    dx /= norm; dy /= norm; dz /= norm;
+
+    // Sample photon energy and corresponding PMMA refractive index
+    double energy = sample_photon_energy();
+    double n_pmma = get_refractive_index(energy);
+
+    // Uniformly sample entrance pupil disk (radius = D/2)
+    double u1 = r->Rndm();
+    double u2 = r->Rndm();
+    double rad = kOpticsR * sqrt(u1);
+    double phi = 2.0 * M_PI * u2;
+    double x0 = rad * cos(phi);
+    double z0 = rad * sin(phi);
+
+    // 1. Refract into lens at y=0 (normal = (0, 1, 0))
+    double cos_i = -dy; // since normal is (0, 1, 0)
+    double n_ratio1 = 1.0 / n_pmma;
+    double sin2_t1 = n_ratio1 * n_ratio1 * (1.0 - cos_i * cos_i);
+    if (sin2_t1 > 1.0) {
+        return std::make_tuple(imgX_deg, imgY_deg); // TIR fallback
+    }
+    double cos_t1 = sqrt(1.0 - sin2_t1);
+    double lx = n_ratio1 * dx;
+    double ly = n_ratio1 * dy + (n_ratio1 * cos_i - cos_t1);
+    double lz = n_ratio1 * dz;
+    double lnorm = sqrt(lx*lx + ly*ly + lz*lz);
+    lx /= lnorm; ly /= lnorm; lz /= lnorm;
+
+    // 2. Refract out of lens with normal defined by aspheric polynomial surface y = P(rho^2)
+    double rho2 = x0*x0 + z0*z0;
+    double dp_du = 0.0;
+    double rho2_pow = 1.0;
+    for (int k = 1; k < 11; k++) {
+        dp_du += k * kPolyCoeffs[k] * rho2_pow;
+        rho2_pow *= rho2;
+    }
+
+    // Surface outward normal: N = (-2*x0*dp_du, 1, -2*z0*dp_du)
+    double nx = -2.0 * dp_du * x0;
+    double ny = 1.0;
+    double nz = -2.0 * dp_du * z0;
+    double nnorm = sqrt(nx*nx + ny*ny + nz*nz);
+    nx /= nnorm; ny /= nnorm; nz /= nnorm;
+
+    double cos_i2 = -(lx*nx + ly*ny + lz*nz);
+    if (cos_i2 < 0) {
+        nx = -nx; ny = -ny; nz = -nz;
+        cos_i2 = -cos_i2;
+    }
+    double n_ratio2 = n_pmma;
+    double sin2_t2 = n_ratio2 * n_ratio2 * (1.0 - cos_i2 * cos_i2);
+    if (sin2_t2 > 1.0) {
+        return std::make_tuple(imgX_deg, imgY_deg); // TIR fallback
+    }
+    double cos_t2 = sqrt(1.0 - sin2_t2);
+    double ox = n_ratio2 * lx + (n_ratio2 * cos_i2 - cos_t2) * nx;
+    double oy = n_ratio2 * ly + (n_ratio2 * cos_i2 - cos_t2) * ny;
+    double oz = n_ratio2 * lz + (n_ratio2 * cos_i2 - cos_t2) * nz;
+    double onorm = sqrt(ox*ox + oy*oy + oz*oz);
+    ox /= onorm; oy /= onorm; oz /= onorm;
+
+    // 3. Propagate to focal plane at y = -F
+    if (oy >= 0.0) {
+        return std::make_tuple(imgX_deg, imgY_deg);
+    }
+    double s = -kOpticsF / oy;
+    double x_fp = x0 + s * ox;
+    double z_fp = z0 + s * oz;
+
+    // Convert focal plane displacement (cm) to angular degrees on sky
+    double out_x_deg = TMath::RadToDeg() * (x_fp / kOpticsF);
+    double out_y_deg = TMath::RadToDeg() * (z_fp / kOpticsF);
+
+    return std::make_tuple(out_x_deg, out_y_deg);
+}
+
 /*
  * Randomly spread arrival direction of photons to simulate PANOSETI PSF
 */
-std::tuple<double,double> spread(double positionX, double positionY){
+std::tuple<double,double> spread_gaussian(double positionX, double positionY){
 
     // axial separation
     double R = TMath::Hypot(positionX,positionY);
@@ -114,9 +373,13 @@ std::tuple<double,double> spread(double positionX, double positionY){
     double sigma = fwhm/2.355;
 
     return std::make_tuple(r->Gaus(positionX, sigma),r->Gaus(positionY, sigma));
-
-
 }
+
+// Retain spread() as an alias calling sample_and_trace_photon() for backward compatibility
+std::tuple<double, double> spread(double positionX, double positionY) {
+    return sample_and_trace_photon(positionX, positionY);
+}
+
 /*
 void testspread(double x, double y){
     // histogram
@@ -138,7 +401,7 @@ void testspread(double x, double y){
     test->Draw("COLZ");
     test->ResetStats();
 }
-*/
+*/ 
 
 /*
 * Add night sky background roughly consistent with VERITAS, but scaled down
@@ -1475,8 +1738,8 @@ TH2D* telEvent(int telNumber, int eventNumber){
         double imgX = TMath::RadToDeg()*tTos_vecTC.X();
         double imgY = TMath::RadToDeg()*tTos_vecTC.Y();
 
-        // scatter by PSF
-        std::tuple<double,double> coords = spread(imgX,imgY);
+        // trace photon through Fresnel optical model
+        std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
 
@@ -1804,8 +2067,8 @@ void showClean(int telNumber, int eventNumber){
         double imgX = TMath::RadToDeg()*tTos_vecTC.X();
         double imgY = TMath::RadToDeg()*tTos_vecTC.Y();
 
-        // scatter by PSF
-        std::tuple<double,double> coords = spread(imgX,imgY);
+        // trace photon through Fresnel optical model
+        std::tuple<double,double> coords = sample_and_trace_photon(imgX,imgY);
         double x = std::get<0>(coords);
         double y = std::get<1>(coords);
 
@@ -1928,8 +2191,8 @@ void timegrad(int eventNumber){
 
         // fill image
         for(int i=0; i<NCp; i++){
-            // scatter by PSF
-            std::tuple<double,double> coords = spread(imgX[i],imgY[i]);
+            // trace photon through Fresnel optical model
+            std::tuple<double,double> coords = sample_and_trace_photon(imgX[i],imgY[i]);
             double x = std::get<0>(coords);
             double y = std::get<1>(coords);
 
