@@ -1064,7 +1064,7 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
     center_median = ( np.median(x_pix), np.median(z_pix) )
     center_mean = ( np.mean(x_pix), np.mean(z_pix) )
     r_median = np.median(r_pix)
-    r_mean = np.median(r_pix)
+    r_mean = np.mean(r_pix)
 
     if not calc_diameter:
         return nvalid, image, center_mean, r_mean, center_median, r_median
