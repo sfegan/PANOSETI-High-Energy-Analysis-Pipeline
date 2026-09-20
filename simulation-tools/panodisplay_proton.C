@@ -24,6 +24,10 @@
 #include "TROOT.h"
 #include "TStyle.h"
 #include "TTree.h"
+#include "Math/Vector3D.h"
+#include "Math/Rotation3D.h"
+#include "Math/RotationX.h"
+#include "Math/RotationZ.h"
 
 #include <limits>
 #include "iostream"
