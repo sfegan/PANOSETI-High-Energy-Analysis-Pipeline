@@ -796,16 +796,53 @@ def create_n_interpolator(datapack):
     
     return scipy.interpolate.interp1d(ev, n, bounds_error=False, fill_value=(n[0], n[-1]))
 
-def create_energy_generator(datapack, zn=0):
+def thermal_spectrum(e, b_minus_v=0.0):
+    """
+    Blackbody spectrum of a star as a function of photon energy.
+
+    Parameters
+    ----------
+    e : float or array_like
+        Photon energy in eV.
+    b_minus_v : float
+        B-V color index, used to estimate effective temperature
+        (Ballesteros' formula).
+
+    Returns
+    -------
+    float or ndarray
+        Spectral radiance (photon energy density per unit energy),
+        normalized to 1 at the center of the V-band (551 nm, ~2.25 eV).
+    """
+    k_B = 8.617333e-5  # eV/K
+
+    # Ballesteros (2012) B-V -> Teff approximation
+    T = 4600.0 * (1.0 / (0.92 * b_minus_v + 1.7)
+                  + 1.0 / (0.92 * b_minus_v + 0.62))
+
+    e = np.asarray(e, dtype=float)
+
+    def planck(e_val):
+        x = e_val / (k_B * T)
+        # avoid overflow for large x
+        return e_val**3 / np.expm1(x)
+
+    e_v = 1239.84193 / 551.0  # eV, V-band center (551 nm)
+    return planck(e) / planck(e_v)
+
+def create_energy_generator(datapack, zn=0, b_minus_v=None):
     """
     Returns a generator function that produces random photon energies (in eV)
     weighted by atmospheric transmission, lens transmission, and SiPM QE.
-    Source photon flux spectrum is assumed to be flat (Cherenkov) - we 
-    should also suuport simple thermal spectra with a given B-V.
+    If b_minus_v is None, the source photon flux spectrum is assumed to be
+    flat (Cherenkov). Otherwise, a thermal spectrum with the given B-V color
+    index is used.
     
     Args:
         datapack: The optical model data pack dictionary.
         zn: Zenith angle in radians (default 0).
+        b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
+                   If None, a flat spectrum is used.
     """
     # Create common energy grid covering the typical range (e.g. 1 to 7 eV based on data)
     ev_grid = np.linspace(1.0, 7.0, 1000)
@@ -839,8 +876,12 @@ def create_energy_generator(datapack, zn=0):
     sipm_eff = np.array(sipm_eff)[sort_idx]
     t_sipm = np.interp(ev_grid, sipm_ev, sipm_eff, left=0, right=0)
     
-    # Total probability density function
-    prob = t_atm * t_pmma * t_sipm
+    # Source spectrum
+    if b_minus_v is not None:
+        source_spec = thermal_spectrum(ev_grid, b_minus_v=b_minus_v)
+        prob = source_spec * t_atm * t_pmma * t_sipm
+    else:
+        prob = t_atm * t_pmma * t_sipm
     
     # Normalize to create a CDF
     prob_sum = np.sum(prob)
@@ -857,7 +898,7 @@ def create_energy_generator(datapack, zn=0):
         
     return generator
 
-def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, zn=0, focal_offset=0.0, energy_eV=None, use_grid=False, fixed_n=None):
+def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, zn=0, focal_offset=0.0, energy_eV=None, use_grid=False, fixed_n=None, b_minus_v=None):
     """
     Generate a bundle of rays and trace them through the telescope.
     
@@ -871,6 +912,8 @@ def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, z
         energy_eV: Photon energy in eV (default None, drawn from standard spectrum).
         use_grid: If True, generate rays on a regular square grid instead of uniformly randomly.
         fixed_n: Fixed refractive index to use for all rays, overriding the datapack interpolator.
+        b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
+                   If None (the default), a flat underlying spectrum is used.
         
     Returns:
         The RayBundle object after propagating to the focal plane.
@@ -885,7 +928,7 @@ def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, z
     
     energy_generator = None
     if energy_eV is None:
-        energy_generator = create_energy_generator(datapack, zn)
+        energy_generator = create_energy_generator(datapack, zn, b_minus_v=b_minus_v)
     else:
         def generator(num_rays=1):
             return np.full(num_rays, energy_eV)
@@ -935,7 +978,7 @@ def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, z
     return traced_bundle
 
 
-def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, pixel_spacing=None, zn=0, focal_offset=0.0, energy_eV=None, calc_diameter=False, diameter_quantile=0.80):
+def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, pixel_spacing=None, zn=0, focal_offset=0.0, energy_eV=None, calc_diameter=False, diameter_quantile=0.80, b_minus_v=None):
     """
     Generate a PSF image by tracing a parallel ray bundle through the telescope
     and histogramming the ray positions on the focal plane.
@@ -974,6 +1017,8 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
                            diameter (e.g. 0.80 for d80, 0.50 for d50).
                            Only used when ``calc_diameter`` is True.
                            Default is 0.80.
+        b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
+                   If None (the default), a flat underlying spectrum is used.
 
     Returns:
         image: numpy array of shape (npixel, npixel) containing the number of
@@ -1023,6 +1068,7 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
         zn=zn,
         focal_offset=focal_offset,
         energy_eV=energy_eV,
+        b_minus_v=b_minus_v,
     )
 
     # Select only valid rays
