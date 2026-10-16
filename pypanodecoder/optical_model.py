@@ -257,6 +257,202 @@ class RayBundle:
             
         return cls(pos, dirs, energy_eV=energy_val)
 
+    @classmethod
+    def create_cone_beam(cls, num_rays, direction, diameter, source_distance, energy_eV=None):
+        """
+        Create a bundle of rays diverging from a point source at a finite distance,
+        with directions sampled uniformly in solid angle on a spherical cap.
+
+        The source is located at ``-source_distance * d_hat`` from the origin (the
+        lens centre).  The half-angle of the cap is given by:
+
+            tan(theta_max) = (diameter / 2) / source_distance
+
+        so ``diameter`` retains its physical meaning as the aperture diameter.
+        Ray directions are drawn with ``cos(theta) ~ Uniform[cos(theta_max), 1]``
+        and ``phi ~ Uniform[0, 2*pi)``, then rotated so that theta=0 aligns with
+        ``direction``.  All rays start at the source point.
+
+        Args:
+            num_rays: Number of rays to generate.
+            direction: Direction from the source toward the telescope aperture
+                       (list or array of 3 elements).
+            diameter: Aperture diameter, used to compute theta_max via
+                      ``tan(theta_max) = (diameter / 2) / source_distance``.
+            source_distance: Distance from the lens centre (origin) to the point
+                             source along the beam axis (must be positive).
+            energy_eV: Photon energy in eV (scalar, array of length num_rays, or a
+                       callable/generator function).
+        """
+        direction = np.array(direction, dtype=float)
+        norm = np.linalg.norm(direction)
+        if norm == 0:
+            raise ValueError("Direction vector cannot be zero.")
+        d_hat = direction / norm
+
+        if source_distance <= 0:
+            raise ValueError("source_distance must be positive.")
+
+        # Source position: behind the origin along the beam axis
+        source_pos = -source_distance * d_hat
+
+        # Half-angle of the spherical cap covering the aperture
+        theta_max = np.arctan2(diameter / 2.0, source_distance)
+        cos_theta_max = np.cos(theta_max)
+
+        # Sample uniformly in solid angle on the spherical cap:
+        #   cos(theta) ~ Uniform[cos_theta_max, 1]
+        #   phi        ~ Uniform[0, 2*pi)
+        cos_theta = np.random.uniform(cos_theta_max, 1.0, num_rays)
+        phi = np.random.uniform(0.0, 2.0 * np.pi, num_rays)
+        sin_theta = np.sqrt(np.maximum(1.0 - cos_theta**2, 0.0))
+
+        # Local directions with theta=0 along +z
+        local_x = sin_theta * np.cos(phi)
+        local_y = sin_theta * np.sin(phi)
+        local_z = cos_theta
+
+        # Build an orthonormal basis (u, v, d_hat) and rotate to world frame
+        if abs(d_hat[0]) < 0.9:
+            arbitrary = np.array([1.0, 0.0, 0.0])
+        else:
+            arbitrary = np.array([0.0, 1.0, 0.0])
+
+        u = np.cross(d_hat, arbitrary)
+        u = u / np.linalg.norm(u)
+        v = np.cross(d_hat, u)
+
+        # Rotate: local (x, y, z) -> world  u*x + v*y + d_hat*z
+        dirs = (local_x[:, np.newaxis] * u
+                + local_y[:, np.newaxis] * v
+                + local_z[:, np.newaxis] * d_hat)
+
+        # All rays originate at the source point
+        pos = np.tile(source_pos, (num_rays, 1))
+
+        # Handle generator function for energy
+        if callable(energy_eV):
+            try:
+                energy_val = energy_eV(num_rays)
+            except TypeError:
+                energy_val = np.array([energy_eV() for _ in range(num_rays)])
+            except Exception:
+                energy_val = np.array([energy_eV() for _ in range(num_rays)])
+        else:
+            energy_val = energy_eV
+
+        return cls(pos, dirs, energy_eV=energy_val)
+
+    @classmethod
+    def create_grid_cone_beam(cls, num_rays, direction, diameter, source_distance, energy_eV=None):
+        """
+        Create a bundle of rays diverging from a point source at a finite distance,
+        with directions on a regular grid in solid-angle space (cos theta, phi).
+
+        This is the grid-sampling counterpart of :meth:`create_cone_beam`.  Since
+        ``dOmega = d(cos theta) * dphi``, a uniform grid in ``(cos theta, phi)``
+        gives equal solid angle per cell — the spherical equivalent of the equal-area
+        Cartesian grid used by :meth:`create_grid_parallel_beam`.
+
+        The half-angle of the cap is:
+
+            tan(theta_max) = (diameter / 2) / source_distance
+
+        Args:
+            num_rays: Approximate number of rays to generate.  The actual number will
+                      be ``n_theta * n_phi`` where ``n_theta`` and ``n_phi`` are chosen
+                      to approximate ``num_rays`` with a roughly square grid in
+                      ``(cos theta, phi)`` space.
+            direction: Direction from the source toward the telescope aperture
+                       (list or array of 3 elements).
+            diameter: Aperture diameter, used to compute theta_max via
+                      ``tan(theta_max) = (diameter / 2) / source_distance``.
+            source_distance: Distance from the lens centre (origin) to the point
+                             source along the beam axis (must be positive).
+            energy_eV: Photon energy in eV (scalar, array of length actual_num_rays,
+                       or a callable/generator function).
+        """
+        direction = np.array(direction, dtype=float)
+        norm = np.linalg.norm(direction)
+        if norm == 0:
+            raise ValueError("Direction vector cannot be zero.")
+        d_hat = direction / norm
+
+        if source_distance <= 0:
+            raise ValueError("source_distance must be positive.")
+
+        if num_rays <= 0:
+            raise ValueError("num_rays must be greater than 0.")
+
+        # Source position: behind the origin along the beam axis
+        source_pos = -source_distance * d_hat
+
+        # Half-angle of the spherical cap covering the aperture
+        theta_max = np.arctan2(diameter / 2.0, source_distance)
+        cos_theta_max = np.cos(theta_max)
+
+        # Solid angle of the cap: 2*pi*(1 - cos_theta_max)
+        # Choose n_phi and n_theta so that n_phi * n_theta ~ num_rays and
+        # the grid is roughly square in (cos_theta, phi) space.
+        delta_cos = 1.0 - cos_theta_max          # range in cos_theta
+        delta_phi = 2.0 * np.pi                  # range in phi
+        # Equal cell size in both dimensions: delta_cos/n_theta = delta_phi/n_phi
+        # n_phi * n_theta = num_rays  and  n_phi/n_theta = delta_phi/delta_cos
+        ratio = delta_phi / delta_cos
+        n_theta = max(1, int(round(np.sqrt(num_rays / ratio))))
+        n_phi = max(1, int(round(num_rays / n_theta)))
+        actual_num_rays = n_theta * n_phi
+
+        # Cell centres in cos_theta (from cos_theta_max to 1, n_theta steps)
+        cos_theta_edges = np.linspace(cos_theta_max, 1.0, n_theta + 1)
+        cos_theta = 0.5 * (cos_theta_edges[:-1] + cos_theta_edges[1:])
+
+        # Cell centres in phi (from 0 to 2*pi, n_phi steps)
+        phi_edges = np.linspace(0.0, 2.0 * np.pi, n_phi + 1)
+        phi = 0.5 * (phi_edges[:-1] + phi_edges[1:])
+
+        # Full grid: shape (n_theta * n_phi,)
+        cos_theta_grid, phi_grid = np.meshgrid(cos_theta, phi, indexing='ij')
+        cos_theta_flat = cos_theta_grid.ravel()
+        phi_flat = phi_grid.ravel()
+        sin_theta_flat = np.sqrt(np.maximum(1.0 - cos_theta_flat**2, 0.0))
+
+        # Local directions with theta=0 along +z
+        local_x = sin_theta_flat * np.cos(phi_flat)
+        local_y = sin_theta_flat * np.sin(phi_flat)
+        local_z = cos_theta_flat
+
+        # Build an orthonormal basis (u, v, d_hat) and rotate to world frame
+        if abs(d_hat[0]) < 0.9:
+            arbitrary = np.array([1.0, 0.0, 0.0])
+        else:
+            arbitrary = np.array([0.0, 1.0, 0.0])
+
+        u = np.cross(d_hat, arbitrary)
+        u = u / np.linalg.norm(u)
+        v = np.cross(d_hat, u)
+
+        # Rotate: local (x, y, z) -> world  u*x + v*y + d_hat*z
+        dirs = (local_x[:, np.newaxis] * u
+                + local_y[:, np.newaxis] * v
+                + local_z[:, np.newaxis] * d_hat)
+
+        # All rays originate at the source point
+        pos = np.tile(source_pos, (actual_num_rays, 1))
+
+        # Handle generator function for energy
+        if callable(energy_eV):
+            try:
+                energy_val = energy_eV(actual_num_rays)
+            except TypeError:
+                energy_val = np.array([energy_eV() for _ in range(actual_num_rays)])
+            except Exception:
+                energy_val = np.array([energy_eV() for _ in range(actual_num_rays)])
+        else:
+            energy_val = energy_eV
+
+        return cls(pos, dirs, energy_eV=energy_val)
+
     def propagate_to_plane_y(self, d, speed=1.0):
         """
         Propagate rays forward in time to a plane defined by y + d = 0 (y = -d).
@@ -830,23 +1026,12 @@ def thermal_spectrum(e, b_minus_v=0.0):
     e_v = 1239.84193 / 551.0  # eV, V-band center (551 nm)
     return planck(e) / planck(e_v)
 
-def create_energy_generator(datapack, zn=0, b_minus_v=None):
+def pe_spectrum_pdf(ev_grid, datapack, zn=0, b_minus_v=None):
     """
-    Returns a generator function that produces random photon energies (in eV)
-    weighted by atmospheric transmission, lens transmission, and SiPM QE.
-    If b_minus_v is None, the source photon flux spectrum is assumed to be
-    flat (Cherenkov). Otherwise, a thermal spectrum with the given B-V color
-    index is used.
-    
-    Args:
-        datapack: The optical model data pack dictionary.
-        zn: Zenith angle in radians (default 0).
-        b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
-                   If None, a flat spectrum is used.
+    Returns the photon energy spectrum (in eV) for a given B-V color index.
+    If b_minus_v is None, a flat spectrum is returned (Cherenkov).
+    Otherwise, a thermal spectrum is used.
     """
-    # Create common energy grid covering the typical range (e.g. 1 to 7 eV based on data)
-    ev_grid = np.linspace(1.0, 7.0, 1000)
-    
     # Atmospheric transmission
     atm_ev = datapack["atmospheric_absorption"]["ev"]
     atm_tau = datapack["atmospheric_absorption"]["tau"]
@@ -882,13 +1067,34 @@ def create_energy_generator(datapack, zn=0, b_minus_v=None):
         prob = source_spec * t_atm * t_pmma * t_sipm
     else:
         prob = t_atm * t_pmma * t_sipm
-    
+
     # Normalize to create a CDF
     prob_sum = np.sum(prob)
     if prob_sum == 0:
         pdf = np.ones_like(prob) / len(prob)
     else:
         pdf = prob / prob_sum
+
+    return pdf
+
+def create_energy_generator(datapack, zn=0, b_minus_v=None):
+    """
+    Returns a generator function that produces random photon energies (in eV)
+    weighted by atmospheric transmission, lens transmission, and SiPM QE.
+    If b_minus_v is None, the source photon flux spectrum is assumed to be
+    flat (Cherenkov). Otherwise, a thermal spectrum with the given B-V color
+    index is used.
+    
+    Args:
+        datapack: The optical model data pack dictionary.
+        zn: Zenith angle in radians (default 0).
+        b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
+                   If None, a flat spectrum is used.
+    """
+    # Create common energy grid covering the typical range (e.g. 1 to 7 eV based on data)
+    ev_grid = np.linspace(1.0, 7.0, 1000)
+    
+    pdf = pe_spectrum_pdf(ev_grid, datapack, zn=zn, b_minus_v=b_minus_v)
     cdf = np.cumsum(pdf)
     
     def generator(num_rays=1):
@@ -898,59 +1104,89 @@ def create_energy_generator(datapack, zn=0, b_minus_v=None):
         
     return generator
 
-def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, zn=0, focal_offset=0.0, energy_eV=None, use_grid=False, fixed_n=None, b_minus_v=None):
+def trace_ray_bundle(direction, num_rays, datapack, thick_lens=False, zn=0, focal_offset=0.0, energy_eV=None, use_grid=False, fixed_n=None, b_minus_v=None, source_distance=None):
     """
     Generate a bundle of rays and trace them through the telescope.
-    
+
+    Supports both parallel beams (infinite-distance source) and cone beams
+    (finite-distance point source).
+
     Args:
-        direction: The direction of the incoming parallel rays (e.g. [0, -1, 0] for on-axis).
+        direction: The direction of the incoming beam (e.g. [0, -1, 0] for on-axis).
+                   For a cone beam this is the direction of the beam axis from the
+                   source toward the aperture centre.
         num_rays: Number of rays to simulate.
         datapack: The loaded optical model data pack.
-        thick_lens: If True, use the thick lens model; otherwise, use the thin lens model.
+        thick_lens: If True, use the thick lens model; otherwise, use the thin lens
+                    model.
         zn: Zenith angle in radians for atmospheric absorption.
         focal_offset: Offset added to the nominal focal distance.
         energy_eV: Photon energy in eV (default None, drawn from standard spectrum).
-        use_grid: If True, generate rays on a regular square grid instead of uniformly randomly.
-        fixed_n: Fixed refractive index to use for all rays, overriding the datapack interpolator.
+        use_grid: If True, generate rays on a regular square grid instead of
+                  uniformly randomly.
+        fixed_n: Fixed refractive index to use for all rays, overriding the
+                 datapack interpolator.
         b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
                    If None (the default), a flat underlying spectrum is used.
-        
+        source_distance: Distance from the telescope aperture (origin) to the point
+                         source along the beam axis.  If None (the default), a
+                         parallel (infinite-distance) beam is used.  Must be positive
+                         when specified.
+
     Returns:
         The RayBundle object after propagating to the focal plane.
     """
     optics = datapack["optical_model"]
     D = optics["D"]
-    
-    # Assuming rays travel roughly in -y direction towards the telescope at y=0.
-    # To start them before the telescope, we place the generating disk behind the origin 
-    # relative to the ray direction.
+
+    # Place the sampling disk one aperture-diameter behind the origin along the
+    # beam direction so that all rays reach the aperture without clipping.
     distance = -D
-    
-    energy_generator = None
+
     if energy_eV is None:
         energy_generator = create_energy_generator(datapack, zn, b_minus_v=b_minus_v)
     else:
-        def generator(num_rays=1):
+        def energy_generator(num_rays=1):
             return np.full(num_rays, energy_eV)
-        energy_generator = generator
 
-    if use_grid:
-        bundle = RayBundle.create_grid_parallel_beam(
-            num_rays=num_rays,
-            direction=direction,
-            diameter=D * 1.01, # Slightly larger than aperture to fully illuminate
-            distance=distance,
-            energy_eV=energy_generator
-        )
+    if source_distance is None:
+        # Parallel (infinite-distance) beam
+        if use_grid:
+            bundle = RayBundle.create_grid_parallel_beam(
+                num_rays=num_rays,
+                direction=direction,
+                diameter=D * 1.01,  # Slightly larger than aperture to fully illuminate
+                distance=distance,
+                energy_eV=energy_generator,
+            )
+        else:
+            bundle = RayBundle.create_parallel_beam(
+                num_rays=num_rays,
+                direction=direction,
+                diameter=D * 1.01,  # Slightly larger than aperture to fully illuminate
+                distance=distance,
+                energy_eV=energy_generator,
+            )
     else:
-        bundle = RayBundle.create_parallel_beam(
-            num_rays=num_rays,
-            direction=direction,
-            diameter=D * 1.01, # Slightly larger than aperture to fully illuminate
-            distance=distance,
-            energy_eV=energy_generator
-        )
-    
+        # Cone (finite-distance) beam: rays start at the source point; diameter
+        # and source_distance define the solid-angle cap — no disk offset needed.
+        if use_grid:
+            bundle = RayBundle.create_grid_cone_beam(
+                num_rays=num_rays,
+                direction=direction,
+                diameter=D,
+                source_distance=source_distance,
+                energy_eV=energy_generator,
+            )
+        else:
+            bundle = RayBundle.create_cone_beam(
+                num_rays=num_rays,
+                direction=direction,
+                diameter=D,
+                source_distance=source_distance,
+                energy_eV=energy_generator,
+            )
+
     if fixed_n is None:
         n_func = create_n_interpolator(datapack)
     else:
@@ -958,30 +1194,59 @@ def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, z
             if np.isscalar(energy):
                 return fixed_n
             return np.full_like(energy, fixed_n, dtype=float)
-    
+
     # Focal plane is at y = -(F + focal_offset)
     if thick_lens:
         traced_bundle = trace_telescope_thick(
             ray_bundle=bundle,
             n_func=n_func,
             optics=optics,
-            focal_offset=focal_offset
+            focal_offset=focal_offset,
         )
     else:
         traced_bundle = trace_telescope_thin(
             ray_bundle=bundle,
             n_func=n_func,
             optics=optics,
-            focal_offset=focal_offset
+            focal_offset=focal_offset,
         )
-    
+
     return traced_bundle
 
 
-def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, pixel_spacing=None, zn=0, focal_offset=0.0, energy_eV=None, calc_diameter=False, diameter_quantile=0.80, b_minus_v=None):
+def trace_parallel_ray_bundle(direction, num_rays, datapack, thick_lens=False, zn=0, focal_offset=0.0, energy_eV=None, use_grid=False, fixed_n=None, b_minus_v=None):
     """
-    Generate a PSF image by tracing a parallel ray bundle through the telescope
-    and histogramming the ray positions on the focal plane.
+    Generate a parallel ray bundle and trace it through the telescope.
+
+    This is a convenience wrapper around :func:`trace_ray_bundle` with
+    ``source_distance=None`` (infinite-distance / parallel beam), preserved for
+    backwards compatibility.
+
+    See :func:`trace_ray_bundle` for full parameter documentation.
+    """
+    return trace_ray_bundle(
+        direction=direction,
+        num_rays=num_rays,
+        datapack=datapack,
+        thick_lens=thick_lens,
+        zn=zn,
+        focal_offset=focal_offset,
+        energy_eV=energy_eV,
+        use_grid=use_grid,
+        fixed_n=fixed_n,
+        b_minus_v=b_minus_v,
+        source_distance=None,
+    )
+
+
+def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, pixel_spacing=None, zn=0, focal_offset=0.0, energy_eV=None, calc_diameter=False, diameter_quantile=0.80, b_minus_v=None, source_distance=None):
+    """
+    Generate a PSF image by tracing a ray bundle through the telescope and
+    histogramming the ray positions on the focal plane.
+
+    By default (``source_distance=None``) a parallel beam is used, modelling a
+    source at infinity.  Pass a positive ``source_distance`` to use a cone beam
+    from a point source at that distance from the telescope aperture.
 
     The ray bundle direction is chosen so that the principal ray of the
     bundle arrives at position (x_phys, z_phys) = (x * pixel_spacing, y * pixel_spacing)
@@ -1019,6 +1284,10 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
                            Default is 0.80.
         b_minus_v: Optional B-V color index for a thermal (stellar) source spectrum.
                    If None (the default), a flat underlying spectrum is used.
+        source_distance: Distance from the telescope aperture (origin) to the point
+                         source along the beam axis.  If None (the default), a
+                         parallel (infinite-distance) beam is used.  Must be positive
+                         when specified.
 
     Returns:
         image: numpy array of shape (npixel, npixel) containing the number of
@@ -1060,7 +1329,7 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
     direction = np.array([dx, dy, dz])
 
     # Trace the bundle
-    bundle = trace_parallel_ray_bundle(
+    bundle = trace_ray_bundle(
         direction=direction,
         num_rays=num_rays,
         datapack=datapack,
@@ -1069,6 +1338,7 @@ def generate_psf_image(x, y, num_rays, datapack, thick_lens=False, npixel=None, 
         focal_offset=focal_offset,
         energy_eV=energy_eV,
         b_minus_v=b_minus_v,
+        source_distance=source_distance,
     )
 
     # Select only valid rays
