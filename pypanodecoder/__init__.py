@@ -29,8 +29,15 @@ from .data_writer import (
     PffWriter
 )
 
+from .baseline_database import (
+    BaselineDatabase
+)
+
+from .charge_histogram import (
+    ChargeHistogram
+)
+
 from .pedestals import (
-    ChargeHistogram,
     ChargeSpectra,
     calculate_charge_spectra,
     apply_polynomial_pedestal_correction,
@@ -64,6 +71,7 @@ __all__ = [
     'load_pff_camera_images',
     'PcapWriter',
     'PffWriter',
+    'BaselineDatabase',
     'ChargeHistogram',
     'ChargeSpectra',
     'calculate_charge_spectra',

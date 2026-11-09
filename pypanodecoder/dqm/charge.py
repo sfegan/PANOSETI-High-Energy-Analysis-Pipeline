@@ -7,7 +7,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from ..pedestals import ChargeHistogram
+from ..charge_histogram import ChargeHistogram
 
 def plot_charge_spectra(qspecs, fig=None, title=None, pixel=None, **kwargs):
     """

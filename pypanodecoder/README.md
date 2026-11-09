@@ -34,11 +34,18 @@ Utilities for saving PANOSETI data in PCAPNG and PFF formats.
 - **`PffWriter`**: Writes camera events into the fixed-size PFF record format.
 - **`templated_filename`**: Flexible utility for generating filenames based on site information (from a synchronized `SITES` configuration), date, and time.
 
+### `baseline_database.py`
+Database for Quabo pedestal baseline measurements.
+- **`BaselineDatabase`**: Loads baseline measurements from `quabo_ph_baseline.json` files and maps UIDs to board locations using `quabo_uids.json` files, with time-indexed lookup.
+
+### `charge_histogram.py`
+Multi-dimensional histogram of charge values and robust statistics.
+- **`ChargeHistogram`**: Calculates robust statistics (mean, median, quantiles, Winsorized mean/variance, Huber location/scale) from charge distributions. Supports arithmetic operations, convolution, downsampling, and log-space transformation.
+
 ### `pedestals.py`
 Utilities for charge spectra analysis and pedestal management.
-- **`ChargeHistogram`**: Calculates robust statistics (mean, median, quantiles, Winsorized mean/variance) from charge distributions.
 - **`ChargeSpectra`**: Generates histograms at the pixel, SiPM (8x8), Quabo (16x16), and full camera (32x32) levels.
-- **Pedestal Correction**: Implements time-dependent polynomial pedestal fitting and subtraction to handle drift in detector baselines.
+- **Pedestal Correction**: Implements time-dependent polynomial and spline pedestal fitting and subtraction to handle drift in detector baselines.
 
 ### `plotting.py`
 Standard plotting functions for PANOSETI data.
