@@ -32,7 +32,8 @@ from .data_writer import (
 from .sites import (
     SITES,
     SITES_BY_MOD_ID,
-    get_site_info
+    get_site_info,
+    get_site_info_or_unknown
 )
 
 from .baseline_database import (
@@ -91,6 +92,7 @@ __all__ = [
     'SITES',
     'SITES_BY_MOD_ID',
     'get_site_info',
+    'get_site_info_or_unknown',
     'BaselineDatabase',
     'ChargeHistogram',
     'ChargeSpectra',

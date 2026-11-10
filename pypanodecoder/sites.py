@@ -8,7 +8,8 @@
 __all__ = [
     'SITES',
     'SITES_BY_MOD_ID',
-    'get_site_info'
+    'get_site_info',
+    'get_site_info_or_unknown'
 ]
 
 SITES = {
@@ -70,3 +71,29 @@ def get_site_info(module_id):
     raise KeyError(
         f"Unknown module_id: {module_id}. Known module IDs are: {list(SITES_BY_MOD_ID.keys())}"
     )
+
+
+def get_site_info_or_unknown(module_id=None):
+    """
+    Returns site information for a given module ID, or a default 'Unknown'
+    site dictionary if the module ID is unknown or None.
+
+    Args:
+        module_id (int, optional): Module ID.
+
+    Returns:
+        dict: Copy of the site configuration dictionary, or fallback defaults.
+    """
+    if module_id is not None and module_id in SITES_BY_MOD_ID:
+        res = SITES_BY_MOD_ID[module_id].copy()
+        res.setdefault('module_id', module_id)
+        return res
+
+    return {
+        'scope': 'Unknown',
+        'module_id': module_id if module_id is not None else 'unknown',
+        'mod_id': module_id if module_id is not None else 'unknown',
+        'name': 'unknown',
+        'daq_ip': '10.0.1.100',
+        'base_ip': '10.0.1.0'
+    }

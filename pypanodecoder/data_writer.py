@@ -12,7 +12,7 @@ import datetime
 import numpy as np
 import platform
 
-from .sites import SITES, SITES_BY_MOD_ID, get_site_info
+from .sites import SITES, SITES_BY_MOD_ID, get_site_info, get_site_info_or_unknown
 
 def templated_filename(template, site_info, ts_utc, seq_id):
     """
@@ -55,7 +55,7 @@ class PcapWriter:
         self.comment = comment
         
         # Get site info from module_id
-        self.site_info = get_site_info(module_id)
+        self.site_info = get_site_info_or_unknown(module_id)
         if scope: self.site_info['scope'] = scope
         if daq_ip: self.site_info['daq_ip'] = daq_ip
         if quabo_base_ip: self.site_info['base_ip'] = quabo_base_ip
@@ -264,7 +264,7 @@ class PffWriter:
         self.module_id = module_id
         
         # Get site info from module_id
-        self.site_info = get_site_info(module_id)
+        self.site_info = get_site_info_or_unknown(module_id)
         if scope: self.site_info['scope'] = scope
         
         self.filename_template = filename_template
