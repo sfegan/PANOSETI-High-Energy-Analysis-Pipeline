@@ -52,17 +52,21 @@ SITES_BY_MOD_ID = {info['mod_id']: info for info in SITES.values()}
 def get_site_info(module_id):
     """
     Returns site information for a given module ID.
+
+    Args:
+        module_id (int): Module ID (e.g. 254 for Gattini, 253 for Winter, etc.).
+
+    Returns:
+        dict: Copy of the site configuration dictionary.
+
+    Raises:
+        KeyError: If module_id is not found in SITES_BY_MOD_ID.
     """
-    if module_id is not None and module_id in SITES_BY_MOD_ID:
+    if module_id in SITES_BY_MOD_ID:
         res = SITES_BY_MOD_ID[module_id].copy()
         res.setdefault('module_id', module_id)
         return res
 
-    return {
-        'scope': 'Unknown',
-        'module_id': module_id if module_id is not None else 'unknown',
-        'mod_id': module_id if module_id is not None else 'unknown',
-        'name': 'unknown',
-        'daq_ip': '10.0.1.100',
-        'base_ip': '10.0.1.0'
-    }
+    raise KeyError(
+        f"Unknown module_id: {module_id}. Known module IDs are: {list(SITES_BY_MOD_ID.keys())}"
+    )
