@@ -28,11 +28,17 @@ Tools for reconstructing full camera events from individual Quabo packets.
 - **`load_pcap_camera_images`**: Specific utility to load data directly from PCAP/PCAPNG files.
 - **`load_pff_camera_images`**: Specific utility to load data directly from PFF files, including automatic image alignment and record indexing.
 
+### `sites.py`
+PANOSETI site configurations and module ID mappings.
+- **`SITES`**: Dictionary mapping site names (`gattini`, `winter`, `fern`, `pti`) to their network configuration, scope name, and module ID (`mod_id`).
+- **`SITES_BY_MOD_ID`**: Dictionary mapping module ID (`mod_id`) to its corresponding site configuration entry.
+- **`get_site_info`**: Fast O(1) lookup returning site metadata dictionary for a given `module_id`.
+
 ### `data_writer.py`
 Utilities for saving PANOSETI data in PCAPNG and PFF formats.
 - **`PcapWriter`**: Generates valid PCAPNG files with reconstructed quabo packets. Supports configurable application names, hardware/OS metadata, and provenance comments.
 - **`PffWriter`**: Writes camera events into the fixed-size PFF record format.
-- **`templated_filename`**: Flexible utility for generating filenames based on site information (from a synchronized `SITES` configuration), date, and time.
+- **`templated_filename`**: Flexible utility for generating filenames based on site information (from `sites.py`), date, and time.
 
 ### `baseline_database.py`
 Database for Quabo pedestal baseline measurements.

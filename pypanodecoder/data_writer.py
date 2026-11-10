@@ -12,50 +12,7 @@ import datetime
 import numpy as np
 import platform
 
-SITES = {
-    'gattini': {
-        'base_ip': '192.168.3.248',
-        'daq_ip': '192.168.0.4',
-        'scope': 'Gattini'
-    },
-    'winter': {
-        'base_ip': '192.168.3.244',
-        'daq_ip': '192.168.0.6',
-        'scope': 'Winter'
-    },
-    'fern': {
-        'base_ip': '192.168.3.240',
-        'daq_ip': '192.168.0.9',
-        'scope': 'Fern'
-    },
-    'pti': {
-        'base_ip': '192.168.3.232',
-        'daq_ip': '192.168.0.8',
-        'scope': 'PTI'
-    },
-}
-
-def get_site_info(module_id):
-    """
-    Returns site information for a given module ID.
-    """
-    if module_id is not None:
-        for name, info in SITES.items():
-            ip = info['base_ip'].split('.')
-            mod = (int(ip[-2])*256 + int(ip[-1]))//4
-            if mod == module_id:
-                res = info.copy()
-                res['module_id'] = mod
-                res['name'] = name
-                return res
-    
-    return {
-        'scope': 'Unknown',
-        'module_id': module_id if module_id is not None else 'unknown',
-        'name': 'unknown',
-        'daq_ip': '10.0.1.100',
-        'base_ip': '10.0.1.0'
-    }
+from .sites import SITES, SITES_BY_MOD_ID, get_site_info
 
 def templated_filename(template, site_info, ts_utc, seq_id):
     """

@@ -29,6 +29,12 @@ from .data_writer import (
     PffWriter
 )
 
+from .sites import (
+    SITES,
+    SITES_BY_MOD_ID,
+    get_site_info
+)
+
 from .baseline_database import (
     BaselineDatabase
 )
@@ -82,6 +88,9 @@ __all__ = [
     'load_pff_camera_images',
     'PcapWriter',
     'PffWriter',
+    'SITES',
+    'SITES_BY_MOD_ID',
+    'get_site_info',
     'BaselineDatabase',
     'ChargeHistogram',
     'ChargeSpectra',
