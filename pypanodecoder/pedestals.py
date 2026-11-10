@@ -131,28 +131,48 @@ def _build_spectra(images, qmin_pix=-512, qmax_pix=4096, downsample=False):
 
     for n in range(num_events):
         image = images[:,:,n]
+        valid_pix = ~np.isnan(image)
+
         # Index: (val - center_0) / w + 0.5. Since center_0 is qmin, it's (val - qmin) / w + 0.5
-        idx_pix = np.floor((image - qmin_pix) / w_pix + 0.5).astype(int)
-        idx_pix = np.clip(idx_pix, 0, len(qcenter_pix) - 1)
-        qhist_pix[jj_pix, ii_pix, idx_pix] += 1
+        if np.any(valid_pix):
+            val_pix = image[valid_pix]
+            idx_pix = np.floor((val_pix - qmin_pix) / w_pix + 0.5).astype(int)
+            idx_pix = np.clip(idx_pix, 0, len(qcenter_pix) - 1)
+            qhist_pix[jj_pix[valid_pix], ii_pix[valid_pix], idx_pix] += 1
 
-        image_sum = np.zeros((33,33),dtype=float)
-        image_sum[1:,1:] = np.cumsum(np.cumsum(image, axis=0), axis=1)
+        # Replace NaNs with 0 for summing SiPM, Quabo, and Camera charges
+        image_clean = np.nan_to_num(image, nan=0.0)
+        image_sum = np.zeros((33,33), dtype=float)
+        image_sum[1:,1:] = np.cumsum(np.cumsum(image_clean, axis=0), axis=1)
 
-        image_sipm = np.diff(np.diff(image_sum[::8,::8],axis=0),axis=1)
-        idx_sipm = np.floor((image_sipm - qmin_pix*64) / w_sipm + 0.5).astype(int)
-        idx_sipm = np.clip(idx_sipm, 0, len(qcenter_sipm) - 1)
-        qhist_sipm[jj_sipm, ii_sipm, idx_sipm] += 1
+        # Count valid (non-NaN) pixels in each block
+        valid_count = np.zeros((33,33), dtype=int)
+        valid_count[1:,1:] = np.cumsum(np.cumsum(valid_pix.astype(int), axis=0), axis=1)
 
-        image_quabo = np.diff(np.diff(image_sum[::16,::16],axis=0),axis=1)
-        idx_quabo = np.floor((image_quabo - qmin_pix*256) / w_quabo + 0.5).astype(int)
-        idx_quabo = np.clip(idx_quabo, 0, len(qcenter_quabo) - 1)
-        qhist_quabo[jj_quabo, ii_quabo, idx_quabo] += 1
+        # SiPM level: only record SiPMs that contain at least one valid pixel
+        n_valid_sipm = np.diff(np.diff(valid_count[::8,::8], axis=0), axis=1)
+        valid_sipm = (n_valid_sipm > 0)
+        if np.any(valid_sipm):
+            image_sipm = np.diff(np.diff(image_sum[::8,::8], axis=0), axis=1)
+            idx_sipm = np.floor((image_sipm[valid_sipm] - qmin_pix*64) / w_sipm + 0.5).astype(int)
+            idx_sipm = np.clip(idx_sipm, 0, len(qcenter_sipm) - 1)
+            qhist_sipm[jj_sipm[valid_sipm], ii_sipm[valid_sipm], idx_sipm] += 1
 
-        image_camera = image_sum[32,32]
-        idx_camera = int(np.floor((image_camera - qmin_pix*1024) / w_camera + 0.5))
-        idx_camera = np.clip(idx_camera, 0, len(qcenter_camera) - 1)
-        qhist_camera[idx_camera] += 1
+        # Quabo level: only record Quabos that contain at least one valid pixel
+        n_valid_quabo = np.diff(np.diff(valid_count[::16,::16], axis=0), axis=1)
+        valid_quabo = (n_valid_quabo > 0)
+        if np.any(valid_quabo):
+            image_quabo = np.diff(np.diff(image_sum[::16,::16], axis=0), axis=1)
+            idx_quabo = np.floor((image_quabo[valid_quabo] - qmin_pix*256) / w_quabo + 0.5).astype(int)
+            idx_quabo = np.clip(idx_quabo, 0, len(qcenter_quabo) - 1)
+            qhist_quabo[jj_quabo[valid_quabo], ii_quabo[valid_quabo], idx_quabo] += 1
+
+        # Camera level: only record if camera contains at least one valid pixel
+        if valid_count[32,32] > 0:
+            image_camera = image_sum[32,32]
+            idx_camera = int(np.floor((image_camera - qmin_pix*1024) / w_camera + 0.5))
+            idx_camera = np.clip(idx_camera, 0, len(qcenter_camera) - 1)
+            qhist_camera[idx_camera] += 1
 
     return ChargeSpectra(
         num_events=num_events,

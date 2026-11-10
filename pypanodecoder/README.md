@@ -40,12 +40,19 @@ Database for Quabo pedestal baseline measurements.
 
 ### `charge_histogram.py`
 Multi-dimensional histogram of charge values and robust statistics.
-- **`ChargeHistogram`**: Calculates robust statistics (mean, median, quantiles, Winsorized mean/variance, Huber location/scale) from charge distributions. Supports arithmetic operations, convolution, downsampling, and log-space transformation.
+- **`ChargeHistogram`**: Calculates robust statistics (mean, median, quantiles, Winsorized mean/variance, Huber location/scale) from charge distributions. Supports arithmetic operations, convolution, downsampling, and log-space transformation. Can be directly instantiated from charge data arrays with `from_data()`, automatically ignoring NaNs.
 
 ### `pedestals.py`
 Utilities for charge spectra analysis and pedestal management.
-- **`ChargeSpectra`**: Generates histograms at the pixel, SiPM (8x8), Quabo (16x16), and full camera (32x32) levels.
+- **`ChargeSpectra`** / **`calculate_charge_spectra`**: Generates histograms at the pixel, SiPM (8x8), Quabo (16x16), and full camera (32x32) levels, ignoring any NaN-valued channels (such as cleaned pixels).
 - **Pedestal Correction**: Implements time-dependent polynomial and spline pedestal fitting and subtraction to handle drift in detector baselines.
+
+### `image_cleaning.py`
+Camera image cleaning algorithms using vectorized SciPy sparse graph routines.
+- **`clean_picture_boundary`** / **`PictureBoundaryCleaner`**: Two-level (picture/boundary) threshold cleaning with configurable 4- or 8-connectivity. Retains isolated picture pixels and adjacent boundary channels. Supports inverted cleaning (`invert=True`) to preserve rejected charges.
+- **`clean_islands`** / **`IslandCleaner`**: Connected-component island cleaning filtering out islands with fewer than a minimum number of channels. Supports inverted cleaning (`invert=True`).
+- **`invert_cleaned_images`**: Inverts any cleaned image container against original uncleaned images to extract rejected charges.
+- **`clean_images`**: Convenience dispatcher and pipeline for multi-stage cleaning.
 
 ### `plotting.py`
 Standard plotting functions for PANOSETI data.

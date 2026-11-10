@@ -44,6 +44,17 @@ from .pedestals import (
     apply_constant_pedestal_correction
 )
 
+from .image_cleaning import (
+    BaseCleaner,
+    PictureBoundaryCleaner,
+    IslandCleaner,
+    CleaningPipeline,
+    clean_picture_boundary,
+    clean_islands,
+    clean_images,
+    invert_cleaned_images
+)
+
 from .plotting import (
     plot_image,
     plot_star_field,
@@ -82,5 +93,13 @@ __all__ = [
     'overlay_stars',
     'plot_north_west_guide',
     'get_bright_stars',
-    'dqm'
+    'dqm',
+    'BaseCleaner',
+    'PictureBoundaryCleaner',
+    'IslandCleaner',
+    'CleaningPipeline',
+    'clean_picture_boundary',
+    'clean_islands',
+    'clean_images',
+    'invert_cleaned_images'
 ]

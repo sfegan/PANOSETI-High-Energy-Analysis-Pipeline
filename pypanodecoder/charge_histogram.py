@@ -58,6 +58,52 @@ class ChargeHistogram:
 
         return cls(qcenter, qhist, bin_width)
 
+    @classmethod
+    def from_data(cls, data, qcenter=None, qmin=-512, qmax=4096, bin_width=1.0):
+        """
+        Constructs a ChargeHistogram from charge data, ignoring any NaN values.
+
+        Args:
+            data (array-like): Charge values. If multi-dimensional, the last axis is treated
+                as the event/sample axis (e.g. shape (32, 32, N) produces a (32, 32) grid).
+            qcenter (array-like, optional): Array of bin centers. If not specified,
+                np.arange(qmin, qmax, bin_width) will be used.
+            qmin (float, optional): Minimum bin center (default -512).
+            qmax (float, optional): Maximum bin center (default 4096).
+            bin_width (float, optional): Width of each bin (default 1.0).
+
+        Returns:
+            ChargeHistogram: A new histogram instance ignoring NaNs.
+        """
+        data = np.asanyarray(data)
+        if qcenter is None:
+            qcenter = np.arange(qmin, qmax, bin_width)
+        else:
+            qcenter = np.asanyarray(qcenter)
+            bin_width = qcenter[1] - qcenter[0] if len(qcenter) > 1 else bin_width
+
+        n_bins = len(qcenter)
+        grid_shape = data.shape[:-1]
+        G = int(np.prod(grid_shape)) if grid_shape else 1
+        N = data.shape[-1] if data.ndim > 0 else 1
+
+        flat_data = data.reshape(G, N)
+        valid_mask = ~np.isnan(flat_data)
+
+        if not np.any(valid_mask):
+            qhist = np.zeros(grid_shape + (n_bins,), dtype=int)
+            return cls(qcenter, qhist, bin_width)
+
+        g_idx, n_idx = np.nonzero(valid_mask)
+        clean_vals = flat_data[g_idx, n_idx]
+
+        bin_idx = np.clip(np.floor((clean_vals - qcenter[0]) / bin_width + 0.5).astype(int), 0, n_bins - 1)
+        linear_idx = g_idx * n_bins + bin_idx
+        flat_qhist = np.bincount(linear_idx, minlength=G * n_bins)
+        qhist = flat_qhist.reshape(grid_shape + (n_bins,))
+
+        return cls(qcenter, qhist, bin_width)
+
     @property
     def shape(self):
         """Returns the shape of the histogram grid (e.g., (32, 32))."""
